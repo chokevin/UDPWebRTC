@@ -1,0 +1,156 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>miniWebRTC</title>
+
+<h3>Create or join a room?</h3>
+<button id="createBtn">BOB: Create</button>
+<button id="joinBtn">ALICE: Join</button>
+<hr>
+<h3 id="myModalLabel">BOB: Send your local offer to ALICE</h3>
+<input id="localOffer" rows=10 cols=50>
+<br>
+<h3>Then, paste the "answer" you received</h3>
+<input id="remoteAnswer" rows=10 cols=50>
+<br>
+<br>
+<button id="answerRecdBtn">Okay, I pasted it.</button>
+<hr>
+<h3>ALICE: Paste the "offer" you received</h3>
+<input id="remoteOffer" rows=10 cols=50>
+<br>
+<br>
+<button id="offerRecdBtn">Okay, I pasted it.</button>
+<h3>Then, send your local answer to BOB</h3>
+<input id="localAnswer" rows=10 cols=50>
+<hr>
+Chat:
+<br>
+<div id="chatlog" style="height:200px; overflow:auto; border:1px solid"></div>
+<br>
+<input type="text" id="messageTextBox" placeholder="Type your message here">
+<button id="sendMessageBtn" onclick="sendMessage()">Send message</button>
+
+<script>
+localOffer.value = remoteAnswer.value = remoteOffer.value = localAnswer.value = "";
+
+/* On click of the button, Bob will generate a new data channel and specify various specifications.
+For our example we will generate the peerconnection and set reliable to false for our UDP latency test.
+
+We also set functions for onMessage from the data channel which handles the messages coming from the Alice
+connection. We will be testing the round trip latency between sending a message from Bob and receiving a message
+from Alice.
+*/ 
+createBtn.onclick = function() {
+  bobGeneratedDataChannel = bobGeneratedPeerConnection.createDataChannel('udp-test', {reliable: false})
+  activeDataChannel = bobGeneratedDataChannel
+  bobGeneratedDataChannel.onopen = function(e) { }
+  bobGeneratedDataChannel.onmessage = function(e) {
+    if (e.data.size) {
+      fileReceiver1.receive(e.data, {})
+    } else {
+      if (e.data.charCodeAt(0) == 2) {
+        return
+      }
+      const data = JSON.parse(e.data)
+      if (data.type === 'file') {
+        fileReceiver1.receive(e.data, {})
+      } else {
+        chatlog.innerHTML += '[' + new Date() + '] ' + data.message + '</p>';
+        chatlog.scrollTop = chatlog.scrollHeight
+      }
+    }
+  }
+
+  /* The bobGeneratedPeerConnection will now create an offer which we need to send to Alice.
+  While the regular WebRTC framework uses TURN and STUN servers, we can use discovery protocols such as 
+  Apple's ZeroConf or Google's Nearby to relay the offer after it is generated. */
+  bobGeneratedPeerConnection.createOffer(function(desc) {
+    bobGeneratedPeerConnection.setLocalDescription(desc, function() {}, function() {})
+  }, function() { }, sdpConstraints)
+};
+
+// BOB: pasted Alice's answer
+answerRecdBtn.onclick = function () {
+  const answer = remoteAnswer.value;
+  const answerDesc = new RTCSessionDescription(JSON.parse(answer))
+  bobGeneratedPeerConnection.setRemoteDescription(answerDesc);
+};
+
+/* User Two or Alice will receive Bob's transmitted offer and set it's remote desscription and create an answer. */
+offerRecdBtn.onclick = function () {
+  const offer = remoteOffer.value;
+  const offerDesc = new RTCSessionDescription(JSON.parse(offer))
+  alicePeerConnection.setRemoteDescription(offerDesc)
+  alicePeerConnection.createAnswer(function(answerDesc) {
+    alicePeerConnection.setLocalDescription(answerDesc)
+  },
+  function () { },
+  sdpConstraints)
+};
+
+if (navigator.webkitGetUserMedia) {
+  RTCPeerConnection = webkitRTCPeerConnection
+}
+
+/* Configuration parameters */
+var cfg = {'iceServers': [{'url': "stun:stun.gmx.net"}]},
+con = { 'optional': [{'DtlsSrtpKeyAgreement': true}] }
+
+var bobGeneratedPeerConnection = new RTCPeerConnection(cfg, con), bobGeneratedDataChannel = null, tn1 = null, activeDataChannel, bobGeneratedPeerConnectionIceDone = false;
+
+var sdpConstraints = {
+  optional: [],
+}
+
+function sendMessage () {
+  if (messageTextBox.value) {
+    activeDataChannel.send(JSON.stringify({message: messageTextBox.value}));
+    chatlog.innerHTML += '[' + new Date() + '] ' + messageTextBox.value + '</p>';
+    messageTextBox.value = "";
+  }
+  return false
+}
+
+/* After communicating to the ice canidate the function creates the local offer to send over to Alice This function is triggered as soon as the data channel
+is created */
+bobGeneratedPeerConnection.onicecandidate = function (RTCPeerConnectionIceEvent) {
+  if (RTCPeerConnectionIceEvent.candidate == null) {
+    localOffer.value = JSON.stringify(bobGeneratedPeerConnection.localDescription);
+  }
+}
+
+/* Constructing Alice's PeerConnection to talk to Bob */
+var alicePeerConnection = new RTCPeerConnection(cfg, con), aliceReceivedDataChannel = null, alicePeerConnectionIceDone = false;
+
+
+/* On receiving a data channel to talk to this is an event handler which handles RTCDataChannelEvent
+This event is triggered when an RTCDataChannel is added to the connection by calling createDataChannel() */
+
+alicePeerConnection.ondatachannel = function (RTCDataChannelEvent) {
+  const receivedDataChannel = e.channel || RTCDataChannelEvent;
+  aliceReceivedDataChannel = receivedDataChannel
+  activeDataChannel = aliceReceivedDataChannel
+  aliceReceivedDataChannel.onopen = function (RTCDataChannelEvent) { }
+  aliceReceivedDataChannel.onmessage = function (RTCDataChannelEvent) {
+    if (RTCDataChannelEvent.data.size) {
+      fileReceiver2.receive(RTCDataChannelEvent.data, {})
+    } else {
+      var data = JSON.parse(RTCDataChannelEvent.data)
+      if (data.type === 'file') {
+        fileReceiver2.receive(RTCDataChannelEvent.data, {})
+        } else {
+        console.log( Date.now() );
+        chatlog.innerHTML += '[' + new Date + '] ' + data.message + '</p>';
+        chatlog.scrollTop = chatlog.scrollHeight;
+      }
+    }
+  }
+}
+
+/* Similarly to the bobPeerConnection.onicecandidate */
+alicePeerConnection.onicecandidate = function (RTCPeerConnectionIceEvent) {
+  if (RTCPeerConnectionIceEvent.candidate == null) {
+    localAnswer.value = JSON.stringify(alicePeerConnection.localDescription);
+  }
+}
+</script>
