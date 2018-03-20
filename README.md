@@ -1,19 +1,11 @@
-miniWebRTC
+WebRTC UDP Data Channel Latency Testing
 ===
 
-A tiny serverless* WebRTC boilerplate,
+A tiny serverless* WebRTC for UDP Data Channel latency testing,
 <br>
-inspired by https://github.com/cjb/serverless-webrtc and https://github.com/webrtc/samples
+inspired by https://github.com/cjb/serverless-webrtc and https://github.com/webrtc/samples and https://github.com/xem/miniWebRTC
 
 *no signaling server, but the STUN server is still necessary and used.
 
 ---
-
-Principle
-====
-
-- bob asks his ip to a stun server and sends it to alice via an url
-- alice clicks and asks her ip to the stun server and sends it to bob via an url
-- bob clicks
-- both can communicate with webrtc
 
