@@ -39,6 +39,8 @@ For our example we will generate the peerconnection and set reliable to false fo
 We also set functions for onMessage from the data channel which handles the messages coming from the Alice
 connection. We will be testing the round trip latency between sending a message from Bob and receiving a message
 from Alice.
+
+This will also trigger the onicecandidate handler for bobGeneratedPeerConnection 
 */ 
 createBtn.onclick = function() {
   bobGeneratedDataChannel = bobGeneratedPeerConnection.createDataChannel('udp-test', {reliable: false})
@@ -65,6 +67,7 @@ createBtn.onclick = function() {
   While the regular WebRTC framework uses TURN and STUN servers, we can use discovery protocols such as 
   Apple's ZeroConf or Google's Nearby to relay the offer after it is generated. */
   bobGeneratedPeerConnection.createOffer(function(desc) {
+    console.log('setting bobs local description');
     bobGeneratedPeerConnection.setLocalDescription(desc, function() {}, function() {})
   }, function() { }, sdpConstraints)
 };
@@ -114,6 +117,8 @@ function sendMessage () {
 /* After communicating to the ice canidate the function creates the local offer to send over to Alice This function is triggered as soon as the data channel
 is created */
 bobGeneratedPeerConnection.onicecandidate = function (RTCPeerConnectionIceEvent) {
+  console.log('on ice candidate bob fired');
+
   if (RTCPeerConnectionIceEvent.candidate == null) {
     localOffer.value = JSON.stringify(bobGeneratedPeerConnection.localDescription);
   }
@@ -127,7 +132,7 @@ var alicePeerConnection = new RTCPeerConnection(cfg, con), aliceReceivedDataChan
 This event is triggered when an RTCDataChannel is added to the connection by calling createDataChannel() */
 
 alicePeerConnection.ondatachannel = function (RTCDataChannelEvent) {
-  const receivedDataChannel = e.channel || RTCDataChannelEvent;
+  const receivedDataChannel = RTCDataChannelEvent.channel || RTCDataChannelEvent;
   aliceReceivedDataChannel = receivedDataChannel
   activeDataChannel = aliceReceivedDataChannel
   aliceReceivedDataChannel.onopen = function (RTCDataChannelEvent) { }
@@ -147,7 +152,8 @@ alicePeerConnection.ondatachannel = function (RTCDataChannelEvent) {
   }
 }
 
-/* Similarly to the bobPeerConnection.onicecandidate */
+/* Similarly to the bobPeerConnection.onicecandidate This fires after receiving the offer from Bob
+This establishes the dataconnection which is found in the offer */
 alicePeerConnection.onicecandidate = function (RTCPeerConnectionIceEvent) {
   if (RTCPeerConnectionIceEvent.candidate == null) {
     localAnswer.value = JSON.stringify(alicePeerConnection.localDescription);
